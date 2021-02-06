@@ -110,11 +110,9 @@ impl SecretStorage {
     }
 }
 
-#[post("/<path>", format = "plain", data = "<data>")]
-fn store(path: String, ss: State<SecretStorage>, data: Data) -> String {
-    use std::io::{Cursor, Read, Seek, SeekFrom, Write};
+use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
-    // Create fake "file"
+fn parse_body(data: Data) -> Vec<u8> {
     let mut c = Cursor::new(Vec::new());
 
     // Write into the "file" and seek to the beginning
@@ -125,12 +123,25 @@ fn store(path: String, ss: State<SecretStorage>, data: Data) -> String {
     // Read the "file's" contents into a vector
     let mut out = Vec::new();
     c.read_to_end(&mut out).unwrap();
-    ss.add(&path, out);
+    out
+}
+
+use rsa::{PublicKey, RSAPrivateKey, PaddingScheme};
+use rand::rngs::OsRng;
+
+#[post("/<path>", format = "plain", data = "<data>")]
+fn store(path: String, ss: State<SecretStorage>, data: Data) -> String {
+    
+    let data = parse_body(data);
+    
+    ss.add(&path, data);
     format!("Post {}", path)
 }
 
-#[get("/<path>")]
-fn fetch(path: String, ss: State<SecretStorage>) -> Option<String> {
+#[get("/<path>", format = "plain", data = "<data>")]
+fn fetch(path: String, ss: State<SecretStorage>, data: Data) -> Option<String> {
+    let publicKey = parse_body(data);
+
     if let Some(value) = ss.get(&path){
         Some(format!("Get {}", std::str::from_utf8(&value).unwrap()))
     } else {

@@ -4,6 +4,7 @@
 #[macro_use] extern crate rocket;
 
 use rocket::State;
+use std::sync::Mutex;
 
 extern crate serde_json;
 
@@ -12,24 +13,27 @@ extern crate serde_json;
 use std::collections::HashMap;
 
 struct SecretStorage {
-    storage: HashMap<String, Vec<u8>>
+    storage: Mutex<HashMap<String, Vec<u8>>>
 }
 
 impl SecretStorage {
     fn new() -> Self {
-        Self{storage: HashMap::new()}
+        Self{storage: Mutex::new(HashMap::new())}
     }
 
     // fn add_s(&mut self, key: &str, value: &str) -> {
 
     // }
 
-    fn add(&mut self, key: &str, value: &[u8]) {
-        self.storage.insert(key.to_string(), value.to_vec());
+    fn add(&self, key: &str, value: &[u8]) {
+        let mut lock = self.storage.lock().unwrap();
+        lock.insert(key.to_string(), value.to_vec());
     }
 
-    fn get(&mut self, key: &str) -> Option<&Vec<u8>> {
-        self.storage.get(key)
+    fn get(&self, key: &str) -> Option<Vec<u8>> {
+        let lock = self.storage.lock().unwrap();
+        let value = lock.get(key);
+        value.map(|x|x.to_vec())
     }
 }
 
@@ -42,7 +46,7 @@ fn store(path: String, ss: State<SecretStorage>) -> String {
 #[get("/<path>")]
 fn fetch(path: String, ss: State<SecretStorage>) -> String {
     let value = ss.get(&path).unwrap();
-    format!("Get {}", std::str::from_utf8(value).unwrap())
+    format!("Get {}", std::str::from_utf8(&value).unwrap())
 }
 
 fn main() {
